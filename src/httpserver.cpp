@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2018 The Bitcoin Core developers
+// Copyright (c) 2015-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -69,7 +69,7 @@ class WorkQueue
 {
 private:
     /** Mutex protects entire object */
-    Mutex cs;
+    std::mutex cs;
     std::condition_variable cond;
     std::deque<std::unique_ptr<WorkItem>> queue;
     bool running;
@@ -88,7 +88,7 @@ public:
     /** Enqueue a work item */
     bool Enqueue(WorkItem* item)
     {
-        LOCK(cs);
+        std::unique_lock<std::mutex> lock(cs);
         if (queue.size() >= maxDepth) {
             return false;
         }
@@ -102,7 +102,7 @@ public:
         while (true) {
             std::unique_ptr<WorkItem> i;
             {
-                WAIT_LOCK(cs, lock);
+                std::unique_lock<std::mutex> lock(cs);
                 while (running && queue.empty())
                     cond.wait(lock);
                 if (!running)
@@ -116,7 +116,7 @@ public:
     /** Interrupt and exit loops */
     void Interrupt()
     {
-        LOCK(cs);
+        std::unique_lock<std::mutex> lock(cs);
         running = false;
         cond.notify_all();
     }
@@ -279,7 +279,7 @@ static void http_reject_request_cb(struct evhttp_request* req, void*)
 }
 
 /** Event dispatcher thread */
-static bool ThreadHTTP(struct event_base* base)
+static bool ThreadHTTP(struct event_base* base, struct evhttp* http)
 {
     RenameThread("bitcoin-http");
     LogPrint(BCLog::HTTP, "Entering http event loop\n");
@@ -352,13 +352,20 @@ bool InitHTTPServer()
     if (!InitHTTPAllowList())
         return false;
 
+    if (gArgs.GetBoolArg("-rpcssl", false)) {
+        uiInterface.ThreadSafeMessageBox(
+            "SSL mode for RPC (-rpcssl) is no longer supported.",
+            "", CClientUIInterface::MSG_ERROR);
+        return false;
+    }
+
     // Redirect libevent's logging to our own log
     event_set_log_callback(&libevent_log_cb);
     // Update libevent's log handling. Returns false if our version of
     // libevent doesn't support debug logging, in which case we should
     // clear the BCLog::LIBEVENT flag.
-    if (!UpdateHTTPServerLogging(g_logger->WillLogCategory(BCLog::LIBEVENT))) {
-        g_logger->DisableCategory(BCLog::LIBEVENT);
+    if (!UpdateHTTPServerLogging(logCategories & BCLog::LIBEVENT)) {
+        logCategories &= ~BCLog::LIBEVENT;
     }
 
 #ifdef WIN32
@@ -416,18 +423,19 @@ std::thread threadHTTP;
 std::future<bool> threadResult;
 static std::vector<std::thread> g_thread_http_workers;
 
-void StartHTTPServer()
+bool StartHTTPServer()
 {
     LogPrint(BCLog::HTTP, "Starting HTTP server\n");
     int rpcThreads = std::max((long)gArgs.GetArg("-rpcthreads", DEFAULT_HTTP_THREADS), 1L);
     LogPrintf("HTTP: starting %d worker threads\n", rpcThreads);
-    std::packaged_task<bool(event_base*)> task(ThreadHTTP);
+    std::packaged_task<bool(event_base*, evhttp*)> task(ThreadHTTP);
     threadResult = task.get_future();
-    threadHTTP = std::thread(std::move(task), eventBase);
+    threadHTTP = std::thread(std::move(task), eventBase, eventHTTP);
 
     for (int i = 0; i < rpcThreads; i++) {
         g_thread_http_workers.emplace_back(HTTPWorkQueueRun, workQueue);
     }
+    return true;
 }
 
 void InterruptHTTPServer()
@@ -492,13 +500,13 @@ struct event_base* EventBase()
 static void httpevent_callback_fn(evutil_socket_t, short, void* data)
 {
     // Static handler: simply call inner handler
-    HTTPEvent *self = static_cast<HTTPEvent*>(data);
+    HTTPEvent *self = ((HTTPEvent*)data);
     self->handler();
     if (self->deleteWhenTriggered)
         delete self;
 }
 
-HTTPEvent::HTTPEvent(struct event_base* base, bool _deleteWhenTriggered, const std::function<void()>& _handler):
+HTTPEvent::HTTPEvent(struct event_base* base, bool _deleteWhenTriggered, const std::function<void(void)>& _handler):
     deleteWhenTriggered(_deleteWhenTriggered), handler(_handler)
 {
     ev = event_new(base, -1, 0, httpevent_callback_fn, this);
@@ -529,7 +537,7 @@ HTTPRequest::~HTTPRequest()
     // evhttpd cleans up the request, as long as a reply was sent.
 }
 
-std::pair<bool, std::string> HTTPRequest::GetHeader(const std::string& hdr) const
+std::pair<bool, std::string> HTTPRequest::GetHeader(const std::string& hdr)
 {
     const struct evkeyvalq* headers = evhttp_request_get_input_headers(req);
     assert(headers);
@@ -599,7 +607,7 @@ void HTTPRequest::WriteReply(int nStatus, const std::string& strReply)
     req = nullptr; // transferred back to main thread
 }
 
-CService HTTPRequest::GetPeer() const
+CService HTTPRequest::GetPeer()
 {
     evhttp_connection* con = evhttp_request_get_connection(req);
     CService peer;
@@ -613,12 +621,12 @@ CService HTTPRequest::GetPeer() const
     return peer;
 }
 
-std::string HTTPRequest::GetURI() const
+std::string HTTPRequest::GetURI()
 {
     return evhttp_request_get_uri(req);
 }
 
-HTTPRequest::RequestMethod HTTPRequest::GetRequestMethod() const
+HTTPRequest::RequestMethod HTTPRequest::GetRequestMethod()
 {
     switch (evhttp_request_get_command(req)) {
     case EVHTTP_REQ_GET:
