@@ -123,8 +123,8 @@ public:
         genesis = CreateGenesisBlock(1538322450, 2114140228, 0x1d00ffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
         
-        printf("CMainParams hashGenesisBlock: %s\n",consensus.hashGenesisBlock.ToString().c_str());
-        printf("CMainParams hashMerkleRoot: %s\n",genesis.hashMerkleRoot.ToString().c_str());
+        //printf("CMainParams hashGenesisBlock: %s\n",consensus.hashGenesisBlock.ToString().c_str());
+        //printf("CMainParams hashMerkleRoot: %s\n",genesis.hashMerkleRoot.ToString().c_str());
         assert(consensus.hashGenesisBlock == uint256S("0x00000000bade5d94a5950bbf777ff802d3b90ecd9774c2a784a0fe03d2214417")); //uint256S("0x00000000bade5d94a5950bbf777ff802d3b90ecd9774c2a784a0fe03d2214417"));
         assert(genesis.hashMerkleRoot == uint256S("0xd3d699f242cdfe0370e86d9ddf2f134b975d3a85be8c700bbe384e1fcc688cd4"));
 
@@ -217,18 +217,19 @@ public:
         nDefaultPort = 18933;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1538317146, 414098459, 0x1d00ffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1538317146, 3159626245, 0x1d00ffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"));
-        assert(genesis.hashMerkleRoot == uint256S("0x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"));
+        assert(consensus.hashGenesisBlock == uint256S("0x00000000d1a9e3bd3b4b632e0c39d47d52eb3b9bde2826d150f2d24c89161ec3"));
+        assert(genesis.hashMerkleRoot == uint256S("0xd3d699f242cdfe0370e86d9ddf2f134b975d3a85be8c700bbe384e1fcc688cd4"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
         // nodes with support for servicebits filtering should be at the top
-        vSeeds.emplace_back("testnet-seed.bitcoin.jonasschnelli.ch");
-        vSeeds.emplace_back("seed.tbtc.petertodd.org");
-        vSeeds.emplace_back("seed.testnet.bitcoin.sprovoost.nl");
-        vSeeds.emplace_back("testnet-seed.bluematt.me"); // Just a static list of stable node(s), only supports x9
+        //vSeeds.emplace_back("testnet-seed.bitcoin.jonasschnelli.ch");
+        //vSeeds.emplace_back("seed.tbtc.petertodd.org");
+        //vSeeds.emplace_back("seed.testnet.bitcoin.sprovoost.nl");
+        //vSeeds.emplace_back("testnet-seed.bluematt.me"); // Just a static list of stable node(s), only supports x9
+        vSeeds.emplace_back("cc.sizeofint.net");
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
